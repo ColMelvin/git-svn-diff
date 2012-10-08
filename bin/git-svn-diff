@@ -141,7 +141,7 @@ END { command_close_pipe($fh, $ctx) if $fh };
 $_ = <$fh>;
 while ($_) {
 	fatal "Combined diff unsupported by SVN: $_" if m/^diff --(?:cc|combined)/;	# Is this actually a possibility??
-	fatal "Internal error: parsing: $_" unless m!^diff --git ("?)a/(.*)\1 "?b/(.*)"?$!;
+	fatal "Internal error: parsing header: $_" unless m!^diff --git ("?)a/(.*)\1 "?b/(.*)"?$!;
 	my $file = $2;
 
 	print "Index: $root$file\n";
@@ -158,11 +158,11 @@ while ($_) {
 	}
 	else {
 		my $revision = $globalRevision ? $sinceRev : getSvnRevision($since, $file);
-		fatal "Internal error: parsing: $_" unless m!^--- a/$file$!;
+		fatal "Internal error: parsing '---': $_" unless m!^--- a/$file$!;
 		print "--- $root$file\t(revision $revision)\n";
 
 		$_ = <$fh>;
-		fatal "Internal error: parsing: $_" unless m/\+\+\+ .*$/;
+		fatal "Internal error: parsing '+++': $_" unless m/\+\+\+ .*$/;
 		my $outRev = "working copy";
 		if ($untilRev) {
 			my $revision = $globalRevision ? $untilRev : getSvnRevision($until, $file);
