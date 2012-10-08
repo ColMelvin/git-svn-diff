@@ -1,0 +1,48 @@
+git-svn-diff
+
+Show changes between the working copy and an SVN revision, or changes
+between 2 SVN revisions.  The diff format is (mostly) compatible with
+SVN; that is, the diff is in the SVN style.
+
+This is mostly targeted at programs that connect to an SVN repository
+and therefore need the extra SVN specific data (e.g. code review
+applications).  For transferring patches to an SVN working copy,
+consider using git-diff(1) along with patch(1).
+
+
+INSTALLATION
+
+To install this module, run the following commands:
+
+	perl Build.PL
+	./Build
+	./Build test
+	./Build install
+
+SUPPORT AND DOCUMENTATION
+
+After installing, you can find documentation for this module with the
+--help option.
+
+    git-svn-diff --help
+
+
+LICENSE AND COPYRIGHT
+
+Copyright (C) 2012 Chris Lindee
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation; either
+version 3.0 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public
+License along with this program; if not, write to the Free
+Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+02111-1307 USA.
+

@@ -1,0 +1,588 @@
+#!/usr/bin/perl
+
+use 5.006;
+use strict;
+use warnings;
+
+use Getopt::Long qw(:config no_auto_abbrev no_ignore_case pass_through);
+use Git qw/command command_oneline command_output_pipe command_close_pipe/;
+use Pod::Usage;
+
+sub alert { print STDERR "warn: $_\n" foreach (@_); }
+sub fatal { print STDERR "fatal: $_\n" foreach (@_); exit 255; }
+
+our $VERSION = '0.00_01';
+
+my $includeRepoPath;
+my $globalRevision = getGitConfigBool("svn.diffGlobalRevision", 1);
+my $keepGitAnnotations = getGitConfigBool("svn.diffWithAnnotations");
+my $functionNameInDiff = 1;
+my ($since, $until);
+my @args;
+my @files;
+{
+	my $revisions;
+	my $change;
+	GetOptions(
+		"help|?" => sub { pod2usage(0) },
+		"version" => \&printVersion,
+
+		# git-svn-diff specific options
+		"relative-repo!" => \$includeRepoPath,
+		"global-revision!" => \$globalRevision,
+
+		# svn diff specific options
+		"git!" => \$keepGitAnnotations,
+		"r|revision=s" => \$revisions,
+		"c|change=s" => \$change,
+		"show-in-function!" => \$functionNameInDiff,
+
+		# disallowed git-diff options
+		"R" => \&disallowedOpt,
+		"no-prefix" => \&disallowedOpt,
+		"src-prefix" => \&disallowedOpt,
+		"dst-prefix" => \&disallowedOpt,
+
+		# git-diff options that should probably be avoided
+	);
+
+	# Check if we are in a repo, passing on the error message from
+	# git and terminating should we not be in one.  This is a
+	# "fail-early" check, but needs to be after the --help,
+	# --version processing.
+	`git rev-parse --is-inside-work-tree`;
+	exit $? >> 8 if $?;
+
+	# Mark the $since & $until values if $revisions have been
+	# applied.  We can't actually resolve $since or $until yet
+	# because we don't have a list of file.
+	if ($revisions) {
+		$since = '';
+		$until = '' if $revisions =~ m/:/;
+	}
+
+	# Resolve remaining command line args
+	my $hasFiles;
+	foreach (@ARGV) {
+		if ($_ eq "--") {
+			$hasFiles = 1;
+		}
+		elsif (m/^-/) {
+			push @args, $_;
+		}
+		elsif ($hasFiles) {
+			push @files, $_;
+		}
+		else {
+			fatal "Commits cannot be specified when SVN --change is used: $_" if $change;
+			fatal "Only 2 commit objects (or revisions) may be specified: $_" if defined $until;
+			if (defined $since) {
+				$until = getCommitFromGenericIdentifier($_);
+			}
+			else {
+				$since = getCommitFromGenericIdentifier($_);
+			}
+		}
+	}
+
+	# Determine actual git commit given SVN revision information
+	if (defined $revisions and defined $change) {
+		fatal "Options --revision and --change are mutually exclusive";
+	}
+	elsif (defined $revisions) {
+		fatal "Invalid revision string: $revisions" unless $revisions =~ m/^(\w+)(?::(\w+))?$/;
+		$since = getCommitFromSvnIdentifier($1, @files);
+		fatal "Cannot find revision: $1" unless $since;
+		if ($2) {
+			$until = getCommitFromSvnIdentifier($2, @files);
+			fatal "Cannot find revision: $2" unless $until;
+		}
+	}
+	elsif (defined $change) {
+		if ($change =~ s/^-//) {
+			$since = getCommitFromSvnIdentifier($change, @files);
+			fatal "Cannot find revision: $change" unless $since;
+			$until = "$since^";
+		}
+		else {
+			$until = getCommitFromSvnIdentifier($change, @files);
+			fatal "Cannot find revision: $change" unless $until;
+			$since = "$until^";
+		}
+	}
+}
+$since = getCommitFromSvnIdentifier("BASE") unless $since;
+fatal "Cannot find SVN base commit in branch" unless $since;
+
+my $sinceRev = getSvnRevision($since);
+fatal "Commit '$since' must be in SVN repository" unless $sinceRev;
+my $untilRev = getSvnRevision($until) if $until;
+
+my $root = '';
+if ($includeRepoPath) {
+	my $output = command("svn", "info");
+
+	fatal "Cannot determine SVN Repository Root" unless $output =~ m/^Repository Root:\s*(\S.*)$/m;
+	my $url = $1;
+
+	fatal "Cannot determine SVN URL" unless $output =~ m!^URL:\s*$url/*(.*?)/*$!m;
+	$root = $1."/" if $1 ne "";
+}
+
+my @cmd = qw(diff --no-textconv);
+push @cmd, @args;
+push @cmd, $since;
+push @cmd, $until if $until;
+push @cmd, "--", @files if @files;
+
+# Perform the diff
+my ($fh, $ctx) = command_output_pipe(@cmd);
+END { command_close_pipe($fh, $ctx) if $fh };
+$_ = <$fh>;
+while ($_) {
+	fatal "Combined diff unsupported by SVN: $_" if m/^diff --(?:cc|combined)/;	# Is this actually a possibility??
+	fatal "Internal error: parsing: $_" unless m!^diff --git ("?)a/(.*)\1 "?b/(.*)"?$!;
+	my $file = $2;
+
+	print "Index: $root$file\n";
+	print "===================================================================\n";
+	print if $keepGitAnnotations;
+	until (($_ = <$fh>) =~ m/^---/) {
+		print if $keepGitAnnotations;
+	}
+	if (m!^--- /dev/null$!) {
+		my $revision = $untilRev || 0;
+		print "--- $root$file\t(revision 0)\n";
+		print "+++ $root$file\t(revision $revision)\n";
+		<$fh>;
+	}
+	else {
+		my $revision = $globalRevision ? $sinceRev : getSvnRevision($since, $file);
+		fatal "Internal error: parsing: $_" unless m!^--- a/$file$!;
+		print "--- $root$file\t(revision $revision)\n";
+
+		$_ = <$fh>;
+		fatal "Internal error: parsing: $_" unless m/\+\+\+ .*$/;
+		my $outRev = "working copy";
+		if ($untilRev) {
+			my $revision = $globalRevision ? $untilRev : getSvnRevision($until, $file);
+			$outRev = "revision $revision";
+		}
+		print "+++ $root$file\t($outRev)\n";
+	}
+	while (($_ = <$fh> || '') =~ m/^[@+\\ -]/) {
+		s/(?<=\d @@).*$// if m/^@/ && ! $functionNameInDiff;
+		print;
+	}
+	print "Cannot display: file marked as a binary type.\n" if m/^Binary files .* differ$/;
+}
+
+exit;
+
+# Returns the commit corresponding to the given git or SVN identifier,
+# in decreasing priority.
+sub getCommitFromGenericIdentifier {
+	my $identifier = shift;
+
+	return command_oneline("rev-parse", "--quiet", "--verify", $identifier)
+		|| getCommitFromSvnIdentifier($identifier);
+}
+
+# Returns the commit on this branch before the given revision if
+# found; C<undef> otherwise.
+sub getFirstCommitBeforeRevision {
+	my $revision = shift;
+	fatal "Invalid revision string: $revision" if $revision =~ /\D/;
+
+	my $time = eval { command_oneline("log", "--all", "--format=format:%ci", "--max-count=1", "--grep", "^git-svn-id: .*\\\@$revision\\b") };
+	return undef unless $time;
+
+	return eval { command_oneline("log", "--before", $time, "--format=format:%H", "--max-count=1") };
+}
+
+# Returns the commit of the given revision, if found (i.e. on this branch);
+# C<undef> otherwise.
+sub getCommitFromRevision {
+	my $revision = shift;
+	fatal "Invalid revision string: $revision" if $revision =~ /\D/;
+
+	return eval { command_oneline("log", "--format=format:%H", "--max-count=1", "--grep", "^git-svn-id: .*\\\@$revision\\b") };
+}
+
+# Returns the commit of the given revision, accepting special SVN keywords,
+# including: BASE, COMMITTED, & PREV.
+sub getCommitFromSvnIdentifier {
+	my $revision = shift;
+
+	if ($revision eq "BASE" || $revision eq "COMMITTED" || $revision eq "PREV") {
+		my @files;
+		@files = @_ unless $revision eq "BASE";
+
+		my $commit = eval { command_oneline("log", "--format=format:%H", "--max-count=1", "--grep", "^git-svn-id: ", "--", @files) };
+		$commit .= "~" if $revision eq "PREV";
+		return $commit;
+	}
+
+	$revision =~ s/^r//;
+	return getCommitFromRevision($revision)	# good line
+		|| getFirstCommitBeforeRevision($revision); # EXPERIMENTAL LINE
+}
+
+# Returns the SVN revision number of the given commit (or the latest commit,
+# including or before the given commit, to have changed the supplied files).
+sub getSvnRevision {
+	my $commit = shift;
+	my @files = @_;
+
+	my $body = eval { command("log", "--format=format:%B", "--max-count=1", $commit, "--", @files) };
+	return undef unless $body;
+
+	return $1 if $body =~ m/^git-svn-id:\s+[^@]+\@(\d+)\b/m;
+	return undef;
+}
+
+sub getGitConfigBool {
+	my $key = shift;
+	my $default = shift;
+
+	my $value = eval { command_oneline("config", "--get", $key) };
+	return $default if $@;
+
+	return 1 if $value =~ m/true/;
+	return 0 if $value =~ m/false/;
+	return $default;
+}
+
+sub printVersion {
+	local $\ = "\n";
+	print "git-svn-diff, version $VERSION";
+	exit;
+}
+
+__END__
+
+=head1 NAME
+
+git-svn-diff - SVN-style diff for git-svn repositories
+
+=head1 SYNOPSIS
+
+=begin man
+
+.Vb 4
+\&\fIgit-svn-diff\fR [<since> [<until>] | \-r <rev>[:<rev>] | \-c <rev>]
+\&        [\-\-relative\-repo] [\-\-global\-revision | \-\-no\-global\-revision]
+\&        [\-\-show\-in\-function | \-\-no\-show\-in\-function] [\-\-git | \-\-no\-git]
+\&        [<git\-diff>] [\-\- <path>...]
+.Ve
+
+=end man
+
+=begin text
+
+git-svn-diff [<since> [<until>] | -r <rev>[:<rev>] | -c <rev>]
+	[--relative-repo] [--global-revision | --no-global-revision]
+	[--show-in-function | --no-show-in-function] [--git | --no-git]
+	[<git-diff>] [-- <path>...]
+
+=end text
+
+=head1 DESCRIPTION
+
+Show changes between the working copy and an SVN revision, or changes
+between 2 SVN revisions.  The diff format is (mostly) compatible with
+SVN; that is, the diff is in the SVN style.
+
+This is mostly targeted at programs that connect to an SVN repository
+and therefore need the extra SVN specific data (e.g. code review
+applications).  For transferring patches to an SVN working copy,
+consider using B<git-diff>(1) along with B<patch>(1).
+
+Since this program targets applications connecting to an SVN repository,
+all diffs must be made against a revision in that repository.  Thus, the
+<since> parameter must always correspond to an SVN revision fetched into
+the git repository.  The <until> parameter may be any commit, or may be
+omitted to specify the working copy.  The index cannot be used for
+comparison.
+
+If no <commit> objects are specified (including through -r & -c), then
+the diff acts as though C<-r BASE> was specified.  That is, it compares
+the working copy to the last revision in SVN (on this branch), just like
+C<svn diff>.
+
+=head1 OPTIONS
+
+=over 4
+
+=item <since>
+
+A git commit object or an SVN revision identifier.  If the identifier is
+not recognized by git, then it is processed as an SVN identifier.  An
+'r' may come before the revision, to help disambiguate from a git
+object.  In addition, the following SVN revision keywords are supported:
+BASE, COMMITTED, & PREV.  See C<--revision> for futher details.
+
+This commit must be a revision in the SVN repository.  If left
+unspecified, the SVN identifier 'BASE' is used.  Note that C<-r> &
+C<-c> both set the <since> value.  See C<--revision> for more details
+on specifying SVN revisions.
+
+=item <until>
+
+Like <since>, this is a git commit object or an SVN revision; however,
+it does not need to be a commit of an SVN revision. If left
+unspecified, the diff is compared against the working copy.  Note that
+C<-r> (with a second value) & C<-c> both set the <until> value.
+
+=item -r, --revision=<N>[:<M>]
+
+Specifies the SVN revisions to use for <since> [and <until>].  This is
+useful for avoiding using git objects, e.g. if a branch named "BASE"
+exists.  Revisions must be a positive integer, but may be prefixed with
+an 'r'.
+
+Some SVN branch keywords are supported: BASE, COMMITTED, & PREV.  The
+BASE keyword identifies the latest SVN revision of this branch; that is,
+the revision (commit) against which work was done.  The COMMITTED
+keyword refers to the latest SVN revision of the branch that modified
+the included <paths>.  Using BASE ignores when the <paths> were changed.
+Finally, PREV corresponds to the commit just prior to COMMITTED, that is
+"COMMITTED^".  Keywords are all uppercase.  The HEAD keyword (in the SVN
+sense) is unavailable.
+
+Note that all revisions are with respect to the current branch.  If a
+specified revision edited another branch, the latest revision on this
+branch (before the specified revision) is used.
+
+=item -c, --change=<rev>
+
+Identical to C<-r N-1:N> if <rev> is positive; C<-r N:N-1> if <rev> is
+negative, where S<< N = abs(<rev>) >>.
+
+=item --relative-repo
+
+Changes paths to be relative to the SVN Repository Root.  A file
+F<README.txt> on branch "experimental" is actually located at
+F<branches/experimental/README.txt>.  This option adds the branch/tag
+path to the filename to correctly identify which branch was changed.
+
+Not recommended for use in conjunction with C<--relative>, as
+"branches/experimental/" would be prepended to a relative path.
+
+Note that the git annotations (--git) are not affected by this option.
+
+=item --global-revision
+
+Use a single revision number all files in the diff header, regardless
+of which revision they were actually edited in (default).  This method
+takes less work and is therefore the default.
+
+  config key: svn.diffGlobalRevision
+
+=item --no-global-revision
+
+Use a file-specific revision number for each file in the diff header.
+Revisions denote when the file was last edited prior to or including the
+revision being compared.
+
+E.g. if a file were edited in revisions 3, 4, 7 & 11 and the user runs
+C<< git-svn-diff --revision=5:10 >> the diff header would look as
+follows:
+
+	Index: file.txt
+	===================================================================
+	--- file.txt	(revision 4)
+	+++ file.txt	(revision 7)
+
+rather than as:
+
+	Index: file.txt
+	===================================================================
+	--- file.txt	(revision 5)
+	+++ file.txt	(revision 10)
+
+=item --show-in-function
+
+Displays the C function name in which the chunk resides (default).
+
+=item --no-show-in-function
+
+Disables --show-in-function.  This is the default in SVN, but not in
+git.  Useful if an older program gets confused by the extra data.
+
+=item --git
+
+Adds (well, retains) git annotations like C<new file 100644> in the
+output diff.
+
+  config key: svn.diffWithAnnotations
+
+=item --no-git
+
+Disables git annotations in output diff (default).
+
+=item <git-diff>
+
+Other options will be passed on to B<git-diff>(1).
+
+While most git-diff options are allowed (though they may cause a fatal
+error), a few are explicitly blocked as they would interfere with
+git-svn-diff directly.  They are as follows: -R, --no-prefix,
+--src-prefix, & --dst-prefix.
+
+=item <path>
+
+The <paths> parameters, when given, are used to limit the diff to the
+named paths (you can give directory names and get diff for all files
+under them).
+
+Files included under the <path> options are used when resolving the SVN
+identifiers COMMITTED & PREV (see L<--revision> for details).
+
+=back
+
+=head1 EXAMPLES
+
+Comparing the working copy to the SVN tree
+
+  $ git-svn-diff                    <1>
+  $ git-svn-diff --git              <2>
+  $ git-svn-diff --relative-repo    <3>
+
+All three of the above examples compare the working copy to the BASE
+revision (i.e. the revision in SVN that was branched from).  This is the
+most common use case.  In particular, <3> is useful when submitting to
+items aware of the various branches.
+
+Matching C<svn diff> more closely
+
+The following commands are nearly equivalent (assuming default
+configuration options).  They both compare the working copy to the
+latest commit on the SVN server in this branch.
+
+  $ svn diff
+  $ git-svn-diff --relative=. --no-show-in-function
+
+Note the extra options; these cause the behavior to be closer to what
+C<svn diff> does, but are generally not necessary.  The output without
+these options is close enough as makes no real difference.
+
+Comparing commits in git but not in SVN
+
+  $ git-svn-diff -r BASE HEAD       <1>
+  $ git-svn-diff BASE HEAD          <2>
+
+In these examples, a comparison is once again made against the BASE
+revision, but with the latest commit in this branch (notably excluding
+working copy & index changes).  The <1> version is preferred over <2>
+because it would not be adversly affected by a branch named "BASE".
+
+Comparing against earlier revisions in SVN
+
+  $ git-svn-diff -r 345             <1>
+  $ git-svn-diff HEAD~5             <2>
+
+The above compare the working copy against a revision that either is
+or comes before the BASE revision.  If in <2> the given commit is not in
+the SVN repository then a fatal error will occur.
+
+=head1 CAVEATS
+
+Unlike B<git-diff>(1), this program I<requires> that the C<--> option be
+provided before listing files.
+
+Only critical options of B<git-diff>(1) are disallowed (see <git-diff>).
+However, certain options will output data that git-svn-diff cannot
+process and will thus trigger a fatal parsing error.  Some of those
+options include:
+
+=over 4
+
+=item --name-only
+
+=item --name-status
+
+=item --raw (and family)
+
+=item --stat (and family)
+
+=item --summary
+
+=back
+
+Additionally, many other options may behave differently under
+git-svn-diff than under B<git-diff>(1).  Below is a non-exhaustive
+list of options that will behave differently:
+
+=over 4
+
+=item --cached
+
+When a commit is not specified, BASE is used instead of HEAD for the
+comparison.  Thus, diffs may contain more than just the changes to the
+index.
+
+=back
+
+=head1 BUGS
+
+Renames are not properly handled; the new filename is not reflected in
+the diff, but the changes are.  There is no plan to fix this currently;
+it may be if demand exists.
+
+Options "--relative" and "--relative-repo" do not play together nicely.
+
+=head1 RESTRICTIONS
+
+SVN properties diffs are not supported, including svn:executable.  Try
+using git annotations (--git) for the executable bit.
+
+=head1 CONFIGURATION
+
+The following B<git-config>(1) options are supported:
+
+=over 4
+
+=item svn.diffGlobalRevision
+
+A boolean value where C<true> specifies that C<--global-revision>
+should be the default and C<false> defaults to C<--no-global-revision>.
+
+=item svn.diffWithAnnotations
+
+A boolean value where C<true> specifies that C<--git> should be the
+default and C<false> defaults to C<--no-git>.
+
+=back
+
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright (C) 2012 Chris Lindee
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation; either
+version 3.0 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public
+License along with this program; if not, write to the Free
+Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+02111-1307 USA.
+
+
+=head1 SEE ALSO
+
+B<git-diff>(1),
+B<git-svn>(1)
+
+=head1 GIT
+
+An unofficial supplement to the B<git>(1) suite.
+
+=cut
