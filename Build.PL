@@ -16,9 +16,9 @@ my $builder = Module::Build->new(
     },
     requires => {
         'perl' => 5.006,
-	'Getopt::Long' => 0,
-	'Git' => 0,
-	'Pod::Usage' => 0,
+        'File::Basename' => 0,
+        'Getopt::Long' => 0,
+        'Git' => 0,
     },
     add_to_cleanup      => [ 'git-svn-diff-*' ],
     create_makefile_pl => 'traditional',

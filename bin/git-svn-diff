@@ -4,9 +4,9 @@ use 5.006;
 use strict;
 use warnings;
 
+use File::Basename;
 use Getopt::Long qw(:config no_auto_abbrev no_ignore_case pass_through);
 use Git qw/command command_oneline command_output_pipe command_close_pipe/;
-use Pod::Usage;
 
 sub alert { print STDERR "warn: $_\n" foreach (@_); }
 sub fatal { print STDERR "fatal: $_\n" foreach (@_); exit 255; }
@@ -24,7 +24,7 @@ my @files;
 	my $revisions;
 	my $change;
 	GetOptions(
-		"help|?" => sub { pod2usage(0) },
+		"help|?" => \&printHelp,
 		"version" => \&printVersion,
 
 		# git-svn-diff specific options
@@ -42,8 +42,6 @@ my @files;
 		"no-prefix" => \&disallowedOpt,
 		"src-prefix" => \&disallowedOpt,
 		"dst-prefix" => \&disallowedOpt,
-
-		# git-diff options that should probably be avoided
 	);
 
 	# Check if we are in a repo, passing on the error message from
@@ -251,6 +249,50 @@ sub getGitConfigBool {
 	return 1 if $value =~ m/true/;
 	return 0 if $value =~ m/false/;
 	return $default;
+}
+
+sub printHelp {
+	local $\ = "\n";
+	my $base = basename($0);
+	print "Usage: $base [OPTIONS] [<commit>] [<commit>] [-- <path> ...]";
+	print "";
+	print "Creates an SVN-style diff for a repository created by git-svn.  This";
+	print "script converts the output of git-diff and thus supports most of its";
+	print "options.  Additionally, the following extra options are supported.";
+	print "";
+	print "Options:";
+	print "   -?, --help  Print this message and exit";
+	print "   --version   Print the version and exit";
+	print "";
+	print "   -r, --revision=<rev>[:<rev>]";
+	print "               Explicitly use SVN revisions instead of git commits.";
+	print "   -c, --change=<rev>";
+	print "               Show the changes introduced by <rev>.";
+	print "";
+	print "   --relative-repo";
+	print "               Makes paths relative to the SVN repository.";
+	print "   --no-global-revision";
+	print "               For the revision in the diff header, select the value";
+	print "               for each file individually.";
+	print "   --no-show-in-function";
+	print "               Remove function names in the chunk header.";
+	print "   --git";
+	print "               Retain git annotations.";
+	print "";
+	print "If no revisions or commits are specified, then the script behaves as";
+	print "though it were called with '-r BASE'.";
+	print "";
+	print "The commit values may either be a git commit id (branch, sha1, etc.)";
+	print "or an SVN revision, with the git interpretation taking priority.  To";
+	print "ensure an item is interpreted as an SVN revision, use the --revision";
+	print "option.  Either way, revisions may be preceeded by an 'r' (e.g. r5).";
+	print "Additionally, the special 'BASE', 'COMMITTED', & 'PREV' revisions";
+	print "are supported.";
+	print "";
+	print "For more information, consult the installed documentation, which is";
+	print "usually available as a man-page or via perldoc.  If documentation";
+	print "was not installed, try running perldoc on this script.";
+	exit;
 }
 
 sub printVersion {
