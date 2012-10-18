@@ -187,7 +187,7 @@ exit;
 sub getCommitFromGenericIdentifier {
 	my $identifier = shift;
 
-	return command_oneline("rev-parse", "--quiet", "--verify", $identifier)
+	return eval { command_oneline("rev-parse", "--quiet", "--verify", $identifier) }
 		|| getCommitFromSvnIdentifier($identifier);
 }
 
