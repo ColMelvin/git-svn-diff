@@ -168,7 +168,7 @@ while ($_) {
 		}
 		print "+++ $root$file\t($outRev)\n";
 	}
-	while (($_ = <$fh> || '') =~ m/^[@+\\ -]/) {
+	while (($_ = <$fh> || '') =~ m/^[\@+\\ -]/) {
 		s/(?<=\d @@).*$// if m/^@/ && ! $functionNameInDiff;
 		print;
 	}
