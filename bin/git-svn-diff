@@ -145,7 +145,8 @@ while ($_) {
 	print "Index: $root$file\n";
 	print "===================================================================\n";
 	print if $keepGitAnnotations;
-	until (($_ = <$fh>) =~ m/^---/) {
+	while (<$fh>) {
+		last if m/^--- / or m/^Binary files .* differ/;
 		print if $keepGitAnnotations;
 	}
 	if (m!^--- /dev/null$!) {
@@ -154,7 +155,7 @@ while ($_) {
 		print "+++ $root$file\t(revision $revision)\n";
 		<$fh>;
 	}
-	else {
+	elsif (m/^--- /) {
 		my $revision = $globalRevision ? $sinceRev : getSvnRevision($since, $file);
 		fatal "Internal error: parsing '---': $_" unless m!^--- a/$file$!;
 		print "--- $root$file\t(revision $revision)\n";
@@ -168,11 +169,15 @@ while ($_) {
 		}
 		print "+++ $root$file\t($outRev)\n";
 	}
+	elsif (m/^Binary files .* differ$/) {
+		print "Cannot display: file marked as a binary type.\n";
+		$_ = <$fh>;
+		next;
+	}
 	while (($_ = <$fh> || '') =~ m/^[\@+\\ -]/) {
 		s/(?<=\d @@).*$// if m/^@/ && ! $functionNameInDiff;
 		print;
 	}
-	print "Cannot display: file marked as a binary type.\n" if m/^Binary files .* differ$/;
 }
 
 exit;
