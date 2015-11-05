@@ -100,12 +100,12 @@ my @files;
 		if ($change =~ s/^-//) {
 			$since = getCommitFromSvnIdentifier($change, @files);
 			fatal "Cannot find revision: $change" unless $since;
-			$until = "$since^";
+			($until) = getParentCommits($since);
 		}
 		else {
 			$until = getCommitFromSvnIdentifier($change, @files);
 			fatal "Cannot find revision: $change" unless $until;
-			$since = "$until^";
+			($since) = getParentCommits($until);
 		}
 	}
 }
@@ -113,7 +113,7 @@ $since = getCommitFromSvnIdentifier("BASE") unless $since;
 fatal "Cannot find SVN base commit in branch" unless $since;
 
 my $sinceRev = getSvnRevision($since);
-fatal "Commit '$since' must be in SVN repository" unless $sinceRev;
+fatal "Commit '$since' must be in SVN repository" unless defined $sinceRev;
 my $untilRev = getSvnRevision($until) if $until;
 
 my $root = '';
@@ -209,6 +209,10 @@ sub getCommitFromRevision {
 	my $revision = shift;
 	fatal "Invalid revision string: $revision" if $revision =~ /\D/;
 
+	# If the revision is 0, we refer to the empty repository before any files
+	# are added.  This corresponds to the git "empty tree".
+	return getGitEmptyTree() if $revision == 0;
+
 	return eval { command_oneline("log", "--format=format:%H", "--max-count=1", "--grep", "^git-svn-id: .*\\\@$revision\\b") };
 }
 
@@ -222,7 +226,7 @@ sub getCommitFromSvnIdentifier {
 		@files = @_ unless $revision eq "BASE";
 
 		my $commit = eval { command_oneline("log", "--format=format:%H", "--max-count=1", "--grep", "^git-svn-id: ", "--", @files) };
-		$commit .= "~" if $revision eq "PREV";
+		($commit) = getParentCommits($commit) if $revision eq "PREV";
 		return $commit;
 	}
 
@@ -236,6 +240,8 @@ sub getCommitFromSvnIdentifier {
 sub getSvnRevision {
 	my $commit = shift;
 	my @files = @_;
+
+	return 0 if $commit eq getGitEmptyTree();
 
 	my $body = eval { command("log", "--format=format:%B", "--max-count=1", $commit, "--", @files) };
 	return undef unless $body;
@@ -254,6 +260,22 @@ sub getGitConfigBool {
 	return 1 if $value =~ m/true/;
 	return 0 if $value =~ m/false/;
 	return $default;
+}
+
+sub getGitEmptyTree {
+	# TODO: Calculate from git hash-object -t tree /dev/null
+	return "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+}
+
+sub getParentCommits {
+	my $commit = shift;
+
+	my $parents = eval { command_oneline("show", "--format=format:%P", $commit) };
+	return split m/\s/, $parents if defined $parents and length $parents;
+
+	# If we have no parent commits, fall back to the empty tree so there
+	# is something to compare to.
+	return getGitEmptyTree();
 }
 
 sub printHelp {
