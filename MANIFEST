@@ -20,6 +20,7 @@ t/cmp-global-revision.t
 t/cmp-merge-cc.t
 t/cmp-merge.t
 t/cmp-move-file.t
+t/cmp-nonexistent-wc.t
 t/cmp-readd-file.t
 t/cmp-replace-bin-with-txt.t
 t/cmp-replace-txt-with-bin.t
@@ -28,6 +29,7 @@ t/cmp-special-revision-BASE.t
 t/cmp-special-revision-P-C.t
 t/cmp-special-revisions.t
 t/cmp-symlinks.t
+t/cmp-typechange-direct.t
 t/cmp-typechange.t
 t/lib/Temp/Repo.pm
 t/lib/Test/Repo.pm

@@ -16,10 +16,13 @@ our @EXPORT_OK = qw(
 );
 
 my $is_eq;
+my @extra_git_args;
 
 INIT {
 	$is_eq ||= eval { require Test::Differences; return \&Test::Differences::eq_or_diff };
 	$is_eq ||= eval { require Test::More; return \&Test::More::is };
+
+	push @extra_git_args, '--show-nonexistent' if cmp_ver(get_svn_version(), '1.9') >= 0;
 }
 
 sub get_svn_version {
@@ -44,7 +47,7 @@ sub cmp_ver {
 sub get_diff {
 	my ($repo, %opts) = @_;
 	my @svn_args = ( @{ $opts{args} || [] }, @{ $opts{svn_args} || [] } );
-	my @git_args = ( @{ $opts{args} || [] }, @{ $opts{git_args} || [] } );
+	my @git_args = ( @{ $opts{args} || [] }, @{ $opts{git_args} || [] }, @extra_git_args );
 
 	if ($opts{files}) {
 		push @svn_args, "--", @{ $opts{files} };

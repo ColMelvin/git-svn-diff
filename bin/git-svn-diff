@@ -16,6 +16,7 @@ our $VERSION = '0.00_01';
 my $includeRepoPath;
 my $globalRevision = getGitConfigBool("svn.diffGlobalRevision", 1);
 my $keepGitAnnotations = getGitConfigBool("svn.diffWithAnnotations");
+my $nonexistent = getGitConfigBool("svn.diffShowNonexistent");
 my $functionNameInDiff = 1;
 my ($since, $until);
 my @args;
@@ -30,6 +31,7 @@ my @files;
 		# git-svn-diff specific options
 		"relative-repo!" => \$includeRepoPath,
 		"global-revision!" => \$globalRevision,
+		"show-nonexistent!" => \$nonexistent,
 
 		# svn diff specific options
 		"git!" => \$keepGitAnnotations,
@@ -151,7 +153,8 @@ while ($_) {
 	}
 	if (m!^--- /dev/null$!) {
 		my $revision = $untilRev || 0;
-		print "--- $root$file\t(revision 0)\n";
+		my $outRev = $nonexistent ? "nonexistent" : "revision 0";
+		print "--- $root$file\t($outRev)\n";
 		print "+++ $root$file\t(revision $revision)\n";
 		<$fh>;
 	}
@@ -161,9 +164,13 @@ while ($_) {
 		print "--- $root$file\t(revision $revision)\n";
 
 		$_ = <$fh>;
-		fatal "Internal error: parsing '+++': $_" unless m/\+\+\+ .*$/;
+		fatal "Internal error: parsing '+++': $_" unless m/\+\+\+ (.*)$/;
+		my $newFile = $1;
 		my $outRev = "working copy";
-		if ($untilRev) {
+		if ($nonexistent && $newFile eq '/dev/null') {
+			$outRev = "nonexistent";
+		}
+		elsif ($untilRev) {
 			my $revision = $globalRevision ? $untilRev : getSvnRevision($until, $file);
 			$outRev = "revision $revision";
 		}
@@ -470,6 +477,15 @@ rather than as:
 	--- file.txt	(revision 5)
 	+++ file.txt	(revision 10)
 
+=item --show-nonexistent
+
+When showing a revision that adds or removes a file, use the annotation
+"nonexistent" instead of "revision 0".  This mimics the behavior of SVN 1.9.
+
+=item --no-show-nonexistent
+
+Disables "nonexistent" annotation in the output diff (default).
+
 =item --show-in-function
 
 Displays the C function name in which the chunk resides (default).
@@ -621,6 +637,11 @@ should be the default and C<false> defaults to C<--no-global-revision>.
 
 A boolean value where C<true> specifies that C<--git> should be the
 default and C<false> defaults to C<--no-git>.
+
+=item svn.diffShowNonexistent
+
+A boolean value where C<true> specifies that C<--show-nonexistent>
+should be the default and C<false> defaults to C<--no-show-nonexistent>.
 
 =back
 
