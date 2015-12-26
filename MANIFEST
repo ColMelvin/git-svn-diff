@@ -15,6 +15,7 @@ t/cmp-empty-dir.t
 t/cmp-empty-file-crash.t
 t/cmp-empty-file.t
 t/cmp-executable-change.t
+t/cmp-git-annotations.t
 t/cmp-global-revision.t
 t/cmp-merge-cc.t
 t/cmp-merge.t
