@@ -30,7 +30,6 @@ $repo->git_run(qw(git checkout -q git-svn));
 $repo->wc_set_file("first", "Nothing");
 $repo->wc_set_file("second", "Nothing");
 
-$TODO = "Issue #16";
 test_diff($repo, args => [qw(-r 2)], git_args => [ '--global-revision' ], name => "Avoid crash with empty file");
 
 exit;

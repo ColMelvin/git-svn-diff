@@ -31,12 +31,7 @@ test_repo($repo, [qw(-c 1)], "Added empty file");
 	test_repo($repo, [qw(-c 3)], "Removed empty file");
 }
 
-{
-	local $TODO = "Issue #16";
-
-	# We expect "empty" to appear before "file" in the diff output.  If not, the test could pass (negating the TODO).
-	test_repo($repo, [qw(-r 0:2)], "Add empty and regular file");
-}
+test_repo($repo, [qw(-r 0:2)], "Add empty and regular file");
 
 {
 	local $TODO = "Issue #17";

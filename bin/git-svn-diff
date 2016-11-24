@@ -139,6 +139,7 @@ push @cmd, "--", @files if @files;
 my ($fh, $ctx) = command_output_pipe(@cmd);
 END { command_close_pipe($fh, $ctx) if $fh };
 $_ = <$fh>;
+OUTER:
 while ($_) {
 	fatal "Combined diff unsupported by SVN: $_" if m/^diff --(?:cc|combined)/;	# Is this actually a possibility??
 	fatal "Internal error: parsing header: $_" unless m!^diff --git ("?)a/(.*)\1 "?b/(.*)"?$!;
@@ -148,9 +149,11 @@ while ($_) {
 	print "===================================================================\n";
 	print if $keepGitAnnotations;
 	while (<$fh>) {
-		last if m/^--- / or m/^Binary files .* differ/;
+		next OUTER if m/^diff --git/;
+		last if m/^--- / or m/^Binary files .* differ/i;
 		print if $keepGitAnnotations;
 	}
+	last if !defined $_;
 	if (m!^--- /dev/null$!) {
 		my $revision = $untilRev || 0;
 		my $outRev = $nonexistent ? "nonexistent" : "revision 0";
