@@ -1,5 +1,16 @@
 Revision history for git-svn-diff
 
+v0.1 2016-12-18
+	Implemented #1: Acceptance test suite
+	Implemented #31: Add SVN v1.9 "nonexistent" annotation
+	Fixed #3: Removed dependency on POD::Usage
+	Fixed #4: Accept SVN revisions as commit arguments
+	Fixed #5: Work with older Perls
+	Fixed #6: Handle binary files
+	Fixed #14: Work with orphaned commits
+	Fixed #16: Work with empty files
+	Changed license to GPLv2
+
 0.00_01 2012-10-07
-        Initial release.
+	Initial development alpha release.
 

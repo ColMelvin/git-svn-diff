@@ -11,7 +11,7 @@ use Git qw/command command_oneline command_output_pipe command_close_pipe/;
 sub alert { print STDERR "warn: $_\n" foreach (@_); }
 sub fatal { print STDERR "fatal: $_\n" foreach (@_); exit 255; }
 
-our $VERSION = '0.00_01';
+our $VERSION = '0.001';
 
 my $includeRepoPath;
 my $globalRevision = getGitConfigBool("svn.diffGlobalRevision", 1);

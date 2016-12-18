@@ -8,6 +8,7 @@ use Module::Build;
 
 my $builder = Module::Build->new(
     dist_name           => 'git-svn-diff',
+    dist_abstract       => 'SVN-style diff for git-svn repositories',
     license             => 'gpl',
     dist_author         => q{Chris Lindee <chris.lindee+github@gmail.com>},
     dist_version_from   => 'bin/git-svn-diff',
