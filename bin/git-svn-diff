@@ -399,7 +399,7 @@ A git commit object or an SVN revision identifier.  If the identifier is
 not recognized by git, then it is processed as an SVN identifier.  An
 'r' may come before the revision, to help disambiguate from a git
 object.  In addition, the following SVN revision keywords are supported:
-BASE, COMMITTED, & PREV.  See C<--revision> for futher details.
+BASE, COMMITTED, & PREV.  See C<--revision> for further details.
 
 This commit must be a revision in the SVN repository.  If left
 unspecified, the SVN identifier 'BASE' is used.  Note that C<-r> &
@@ -563,7 +563,7 @@ Comparing commits in git but not in SVN
 In these examples, a comparison is once again made against the BASE
 revision, but with the latest commit in this branch (notably excluding
 working copy & index changes).  The <1> version is preferred over <2>
-because it would not be adversly affected by a branch named "BASE".
+because it would not be adversely affected by a branch named "BASE".
 
 Comparing against earlier revisions in SVN
 

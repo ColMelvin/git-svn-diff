@@ -1,9 +1,9 @@
 Build.PL
 Changes
-bin/git-svn-diff
 LICENSE
 MANIFEST
-README
+README.md
+bin/git-svn-diff
 t/00-load.t
 t/binary-file.t
 t/cmp-basic-file-git.t
