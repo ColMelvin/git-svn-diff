@@ -159,17 +159,17 @@ while ($_) {
 		$new_type = $1 if m/^new (?:file )?mode ([0-7]{5,6})$/;
 	}
 	last if !defined $_;
-	if (m!^--- /dev/null$!) {
-		my $revision = $untilRev || 0;
-		my $outRev = $nonexistent ? "nonexistent" : "revision 0";
-		print "--- $root$file\t($outRev)\n";
-		print "+++ $root$file\t(revision $revision)\n";
-		<$fh>;
-	}
-	elsif (m/^--- /) {
-		my $revision = $globalRevision ? $sinceRev : getSvnRevision($since, $file);
-		fatal "Internal error: parsing '---': $_" unless m!^--- a/$file$!;
-		print "--- $root$file\t(revision $revision)\n";
+	if (m/^--- (.*)$/) {
+		my $oldFile = $1;
+		if ($oldFile eq '/dev/null') {
+			my $outRev = $nonexistent ? "nonexistent" : "revision 0";
+			print "--- $root$file\t($outRev)\n";
+		}
+		else {
+			my $revision = $globalRevision ? $sinceRev : getSvnRevision($since, $file);
+			fatal "Internal error: parsing '---': $_" unless m!^--- a/$file$!;
+			print "--- $root$file\t(revision $revision)\n";
+		}
 
 		$_ = <$fh>;
 		fatal "Internal error: parsing '+++': $_" unless m/^\+\+\+ (.*)$/;

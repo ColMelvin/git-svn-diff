@@ -40,7 +40,7 @@ $repo->wc_set_file("other", "Nothing special");
 {
 	test_repo($repo, [qw(-r BASE)], 1, undef, "BASE earlier than HEAD: Compare to BASE");
 	test_repo($repo, [qw(-r COMMITTED)], 1, undef, "BASE earlier than HEAD: Compare to COMMITTED");
-	local $TODO = "Issue #15";
+	local $TODO = "Issue #30" if $before_1_8;
 	test_repo($repo, [qw(-r PREV)], 1, undef, "BASE earlier than HEAD: Compare to PREV");
 }
 
