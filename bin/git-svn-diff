@@ -167,7 +167,7 @@ while ($_) {
 		print "--- $root$file\t(revision $revision)\n";
 
 		$_ = <$fh>;
-		fatal "Internal error: parsing '+++': $_" unless m/\+\+\+ (.*)$/;
+		fatal "Internal error: parsing '+++': $_" unless m/^\+\+\+ (.*)$/;
 		my $newFile = $1;
 		my $outRev = "working copy";
 		if ($nonexistent && $newFile eq '/dev/null') {

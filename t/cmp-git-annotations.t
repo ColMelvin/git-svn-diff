@@ -197,7 +197,7 @@ sub decode_base85_block {
 	my %lookup = map { $_ => $index++ } BASE85();
 
 	my $int = 0;
-    for (0..4) {
+	for (0..4) {
 		my $char = substr $str, $_, 1;
 		$int *= 85;
 		$int += $lookup{$char};
