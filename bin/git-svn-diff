@@ -161,28 +161,34 @@ while ($_) {
 	last if !defined $_;
 	if (m/^--- (.*)$/) {
 		my $oldFile = $1;
+
+		my $oldRev;
 		if ($oldFile eq '/dev/null') {
-			my $outRev = $nonexistent ? "nonexistent" : "revision 0";
-			print "--- $root$file\t($outRev)\n";
+			$oldRev = $nonexistent ? "nonexistent" : "revision 0";
+		}
+		elsif ($oldFile =~ m{^a/$file$}) {
+			my $revision = $globalRevision ? $sinceRev : getSvnRevision($since, $file);
+			$oldRev = "revision $revision";
 		}
 		else {
-			my $revision = $globalRevision ? $sinceRev : getSvnRevision($since, $file);
-			fatal "Internal error: parsing '---': $_" unless m!^--- a/$file$!;
-			print "--- $root$file\t(revision $revision)\n";
+			fatal "Internal error: parsing '---': $_";
 		}
+		$oldFile = "$root$file" if !$keepGitAnnotations;
+		print "--- $oldFile\t($oldRev)\n";
 
 		$_ = <$fh>;
 		fatal "Internal error: parsing '+++': $_" unless m/^\+\+\+ (.*)$/;
 		my $newFile = $1;
-		my $outRev = "working copy";
+		my $newRev = "working copy";
 		if ($nonexistent && $newFile eq '/dev/null') {
-			$outRev = "nonexistent";
+			$newRev = "nonexistent";
 		}
 		elsif ($untilRev) {
 			my $revision = $globalRevision ? $untilRev : getSvnRevision($until, $file);
-			$outRev = "revision $revision";
+			$newRev = "revision $revision";
 		}
-		print "+++ $root$file\t($outRev)\n";
+		$newFile = "$root$file" if !$keepGitAnnotations;
+		print "+++ $newFile\t($newRev)\n";
 	}
 	elsif (m/^Binary files .* differ$/) {
 		print "Cannot display: file marked as a binary type.\n";

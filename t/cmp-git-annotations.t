@@ -57,24 +57,18 @@ $repo->svn_commit("Modify binary file");
 
 $repo->git_run(qw(git checkout -q git-svn));
 
+test_repo($repo, [qw(-c 1)], "Added a text file");
+test_repo($repo, [qw(-c 2)], "Modified the text file");
 {
-	local $TODO_diff_only = 'Issue #32';
-	test_repo($repo, [qw(-c 1)], "Added a text file");
-	test_repo($repo, [qw(-c 2)], "Modified the text file");
-}
-{
-	local $TODO_diff_only = 'SVN failing "A.2" & Issue #32';
+	local $TODO_diff_only = 'SVN failing "A.2"';
 	test_repo($repo, [qw(-c 3)], "Added executable file");
 }
 {
 	local $TODO = 'SVN failings "A.2", "B": Mode changes unsupported by SVN';
 	test_repo($repo, [qw(-c 4)], "Change file mode (remove executable bit)");
 }
-{
-	local $TODO_diff_only = 'Issue #32';
-	test_repo($repo, [qw(-r 2:4)], "Add non-executable file");
-	test_repo($repo, [qw(-c 5)], "Deleted file");
-}
+test_repo($repo, [qw(-r 2:4)], "Add non-executable file");
+test_repo($repo, [qw(-c 5)], "Deleted file");
 
 SKIP: {
 	skip "GIT binary patch not available before SVN v1.9", 4 if cmp_ver($svn_version, '1.9') < 0;
@@ -95,7 +89,7 @@ SKIP: {
 	$repo->svn_commit("Add symlink");
 	$repo->git_run(qw(git checkout -q git-svn));
 
-	local $TODO_diff_only = 'SVN failing "A.3" & Issue #32';
+	local $TODO_diff_only = 'SVN failing "A.3"';
 	test_repo($repo, [qw(-c 8)], "Add symlink");
 }
 
