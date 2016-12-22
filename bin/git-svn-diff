@@ -131,6 +131,7 @@ if ($includeRepoPath) {
 
 my @cmd = qw(diff --no-textconv);
 push @cmd, @args;
+push @cmd, '--relative' if $includeRepoPath;
 push @cmd, $since;
 push @cmd, $until if $until;
 push @cmd, "--", @files if @files;

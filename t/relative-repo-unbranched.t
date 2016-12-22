@@ -66,16 +66,7 @@ $repo->set_subdir("dir");
 # environmental variable is set.  Clear it for consistent runs.
 delete $ENV{GIT_DIR};
 
-$TODO = "Issue #7";
-Test::Repo::cmp_diff($repo->git_svn_diff(qw(-c 2 --relative-repo)), <<DIFF, "Root working copy (top-level)");
-Index: file
-===================================================================
---- file\t(revision 1)
-+++ file\t(revision 2)
-@@ -1 +1 @@
--contents
-+Contents
-DIFF
+Test::Repo::cmp_diff($repo->git_svn_diff(qw(-c 2 --relative-repo)), '', "Root working copy (top-level)");
 Test::Repo::cmp_diff($repo->git_svn_diff(qw(-c 3 --relative-repo)), <<DIFF, "Root working copy (nested)");
 Index: dir/nested
 ===================================================================
