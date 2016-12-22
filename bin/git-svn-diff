@@ -144,6 +144,7 @@ while ($_) {
 	fatal "Combined diff unsupported by SVN: $_" if m/^diff --(?:cc|combined)/;	# Is this actually a possibility??
 	fatal "Internal error: parsing header: $_" unless m!^diff --git ("?)a/(.*)\1 "?b/(.*)"?$!;
 	my $file = $2;
+	my ($old_type, $new_type) = ('','');
 
 	print "Index: $root$file\n";
 	print "===================================================================\n";
@@ -152,6 +153,9 @@ while ($_) {
 		next OUTER if m/^diff --git/;
 		last if m/^--- / or m/^Binary files .* differ/i;
 		print if $keepGitAnnotations;
+		$old_type = $new_type = $1 if m/^index [0-9a-f]{6,40}\.\.[0-9a-f]{6,40} ([0-7]{5,6})$/;
+		$old_type = $1 if m/^(?:old|deleted file) mode ([0-7]{5,6})$/;
+		$new_type = $1 if m/^new (?:file )?mode ([0-7]{5,6})$/;
 	}
 	last if !defined $_;
 	if (m!^--- /dev/null$!) {
@@ -185,6 +189,8 @@ while ($_) {
 		next;
 	}
 	while (($_ = <$fh> || '') =~ m/^[\@+\\ -]/) {
+		$old_type = '' if $old_type eq "120000" && s/^-/-link /;
+		$new_type = '' if $new_type eq "120000" && s/^\+/+link /;
 		s/(?<=\d @@).*$// if m/^@/ && ! $functionNameInDiff;
 		print;
 	}

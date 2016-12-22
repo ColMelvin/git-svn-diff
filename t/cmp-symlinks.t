@@ -38,7 +38,6 @@ $repo->git_run(qw(git checkout -q git-svn));
 plan skip_all => "The system is creating fake symlinks" if !-l ($repo->get_svn_wc() . "/link-to-file");
 plan tests => 3;
 
-$TODO = "Issue #10";	# Affects all tests below
 {
 	local $TODO = "Issue #11";
 	test_repo($repo, [qw(-c 1)], "Added symlinks");

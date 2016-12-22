@@ -95,7 +95,7 @@ SKIP: {
 	$repo->svn_commit("Add symlink");
 	$repo->git_run(qw(git checkout -q git-svn));
 
-	local $TODO_diff_only = 'SVN failing "A.3" & Issues #10 & #32';
+	local $TODO_diff_only = 'SVN failing "A.3" & Issue #32';
 	test_repo($repo, [qw(-c 8)], "Add symlink");
 }
 
