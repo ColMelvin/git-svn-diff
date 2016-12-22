@@ -29,7 +29,7 @@ $repo->svn_commit("Convert to real file");
 # Checkout the latest commit in the branch to resolve SVN revisions.
 $repo->git_run(qw(git checkout -q git-svn));
 
-$TODO = "Issue #11";
+$TODO = "Issue #10";
 test_repo($repo, [qw(-c 1)], "Added symlinks");
 $TODO = "Issue #18";
 test_repo($repo, [qw(-c 2)], "Change symlink to regular file");

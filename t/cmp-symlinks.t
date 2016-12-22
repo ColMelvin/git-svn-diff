@@ -6,7 +6,7 @@ use lib "$FindBin::Bin/lib";
 use Temp::Repo;
 
 use Test::More;
-use Test::Repo;
+use Test::Repo qw(cmp_ver get_svn_version);
 
 eval { symlink("","") };
 plan skip_all => "System does not support symlinks" if $@;
@@ -38,11 +38,18 @@ $repo->git_run(qw(git checkout -q git-svn));
 plan skip_all => "The system is creating fake symlinks" if !-l ($repo->get_svn_wc() . "/link-to-file");
 plan tests => 3;
 
-$TODO = "Issue #11";
-test_repo($repo, [qw(-c 1)], "Added symlinks");
-$TODO = "Issue #10";
+$TODO = "Issue #10";	# Affects all tests below
+{
+	local $TODO = "Issue #11";
+	test_repo($repo, [qw(-c 1)], "Added symlinks");
+}
 test_repo($repo, [qw(-c 2)], "Move symlink target");
-test_repo($repo, [qw(-c 3)], "Removed symlinks");
+{
+	# Before SVN 1.9, the implicit deletion of properties was not shown for
+	# deleted files.
+	local $TODO = "Issue #11" if cmp_ver(get_svn_version(), '1.9') >= 0;
+	test_repo($repo, [qw(-c 3)], "Removed symlinks");
+}
 
 exit;
 

@@ -32,7 +32,7 @@ $repo->wc_set_file("second", "Nothing");
 
 test_diff($repo, args => [qw(-r 1:3)], git_args => [ '--global-revision' ], name => "Use global revision when revisions specified");
 {
-	local $TODO = "Issue #15";
+	local $TODO = "Issue #33";
 	test_diff($repo, args => [qw(-r 2)], git_args => [ '--global-revision' ], name => "Use global revision when revisions specified");
 }
 
