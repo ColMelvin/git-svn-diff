@@ -166,7 +166,7 @@ while ($_) {
 		if ($oldFile eq '/dev/null') {
 			$oldRev = $nonexistent ? "nonexistent" : "revision 0";
 		}
-		elsif ($oldFile =~ m{^a/$file$}) {
+		elsif ($oldFile =~ m{^a/\Q$file\E\t?$}) {	# Git adds a tab for some reason on files with spaces
 			my $revision = $globalRevision ? $sinceRev : getSvnRevision($since, $file);
 			$oldRev = "revision $revision";
 		}
