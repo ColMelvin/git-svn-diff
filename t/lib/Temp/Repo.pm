@@ -103,7 +103,7 @@ sub svn_set_symlink {
 	my ($self, $target, $path) = @_;
 
 	my $file = File::Spec->catfile($self->get_svn_wc(), $path);
-	unlink $file or die "Cannot remove file “$file”: $!" if -e $file;
+	unlink $file or die "Cannot remove file “$file”: $!" if lstat $file;
 	symlink $target, $file or die "Cannot create symlink “$file” -> “$target”: $!";
 
 	return $file;
@@ -158,7 +158,7 @@ sub git_svn_diff {
 sub create_git_orderfile {
 	my ($self, $svn_diff) = @_;
 
-	my @order = $svn_diff =~ m/^Index: (.*)$/gm;
+	my @order = map { quotemeta } $svn_diff =~ m/^Index: (.*)$/gm;
 
 	my $file = File::Spec->catfile($self->{dir}, "orderfile");
 	open my $fh, '>', $file or die "Cannot open file “$file”: $!";
