@@ -29,6 +29,7 @@ t/cmp-show-function.t
 t/cmp-special-revision-BASE.t
 t/cmp-special-revision-P-C.t
 t/cmp-special-revisions.t
+t/cmp-symlink-characters.t
 t/cmp-symlinks.t
 t/cmp-typechange-direct.t
 t/cmp-typechange.t
