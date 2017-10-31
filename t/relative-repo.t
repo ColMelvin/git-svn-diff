@@ -9,22 +9,18 @@ use Test::More tests => 5;
 use Test::Repo;
 
 my $repo = Temp::Repo->new(stdlayout => 1);
-sleep 1;	# Issue #28
 
 $repo->svn_new_file("trunk/file", "content\n");
 $repo->svn_new_dir("trunk/dir/");
 $repo->svn_new_file("trunk/dir/nested", "Nested file\n");
 $repo->svn_commit("Initial commit");
-sleep 1;	# Issue #28
 
 $repo->svn_run(qw(svn copy), "trunk", "branches/FEATURE");
 $repo->svn_commit("Branch for feature");
-sleep 1;	# Issue #28
 
 $repo->svn_overwrite_file("trunk/file", "Contents\n");
 $repo->svn_overwrite_file("trunk/dir/nested", "Nested file\nupdated\n");
 $repo->svn_commit("Modify mainline copy");
-sleep 1;	# Issue #28
 
 $repo->svn_overwrite_file("branches/FEATURE/file", "content\nchanged\n");
 $repo->svn_overwrite_file("branches/FEATURE/dir/nested", "Nested file\nchanged\n");

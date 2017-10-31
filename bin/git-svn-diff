@@ -227,7 +227,11 @@ sub getFirstCommitBeforeRevision {
 	my $time = eval { command_oneline("log", "--all", "--format=format:%ci", "--max-count=1", "--grep", "^git-svn-id: .*\\\@$revision\\b") };
 	return undef unless $time;
 
-	return eval { command_oneline("log", "--before", $time, "--format=format:%H", "--max-count=1") };
+	my $commit = eval { command_oneline("log", "--before", $time, "--format=format:%H", "--max-count=1") };
+	while (getSvnRevision($commit) > $revision) {
+		($commit) = getParentCommits($commit);
+	}
+	return $commit;
 }
 
 # Returns the commit of the given revision, if found (i.e. on this branch);
