@@ -62,6 +62,10 @@ DIFF
 
 $repo->set_subdir("dir");
 
+# When this test is run as part of a git-rebase, it can fail because this
+# environmental variable is set.  Clear it for consistent runs.
+delete $ENV{GIT_DIR};
+
 $TODO = "Issue #7";
 Test::Repo::cmp_diff($repo->git_svn_diff(qw(-c 2 --relative-repo)), <<DIFF, "Root working copy (top-level)");
 Index: file
