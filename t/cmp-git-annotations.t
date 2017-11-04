@@ -37,7 +37,7 @@ $repo->svn_overwrite_file("file", "Contents");
 $repo->svn_commit("Modify file");
 
 $repo->svn_new_file("exec", "#!/bin/true");
-$repo->svn_run(qw(svn propset svn:executable * exec));
+$repo->svn_run(qw(svn propset svn:executable on exec));
 $repo->svn_commit("Add executable file");	# This will "chmod +x exec" on POSIX systems
 
 $repo->svn_run(qw(svn propdel svn:executable exec));

@@ -17,7 +17,7 @@ $repo->svn_new_file("file", <<EXEC);
 EXEC
 $repo->svn_commit("Initial commit");
 
-$repo->svn_run(qw(svn propset svn:executable * file));
+$repo->svn_run(qw(svn propset svn:executable on file));
 $repo->svn_commit("Make executable");
 
 $repo->svn_run(qw(svn copy file copy));
