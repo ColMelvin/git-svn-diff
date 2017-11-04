@@ -1,5 +1,16 @@
 Revision history for git-svn-diff
 
+v0.1.1 2017-11-04
+	Fixed #7: Support --relative-repo in all directories
+	Fixed #10: Use SVN format for displaying symlink target
+	Fixed #15: Don't report "revision 0" when file is in repo
+	Fixed #28: Get correct commit to compare for a given revision
+	Fixed #32: Retain a/, b/ prefixes when using --git
+	Fixed #34: Work with filenames containing spaces
+	Fixed #35: Work with filenames containing special characters
+	Fixed #36: Avoid test breakage during git-rebase
+	Fixed #37: Avoid test breakage on Windows
+
 v0.1 2016-12-18
 	Implemented #1: Acceptance test suite
 	Implemented #31: Add SVN v1.9 "nonexistent" annotation
