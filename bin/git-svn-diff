@@ -13,15 +13,29 @@ sub fatal { print STDERR "fatal: $_\n" foreach (@_); exit 255; }
 
 our $VERSION = '0.001002';
 
-my $includeRepoPath;
-my $params;
-$params->{globalRevision} = getGitConfigBool("svn.diffGlobalRevision", 1);
-$params->{keepGitAnnotations} = getGitConfigBool("svn.diffWithAnnotations");
-$params->{nonexistent} = getGitConfigBool("svn.diffShowNonexistent");
-$params->{functionNameInDiff} = 1;
-my @args;
-my @files;
-{
+exit _main() unless caller;
+
+sub _main {
+	my $params = process_arguments();
+
+	my $diff_args = delete $params->{diff_args};
+	my ($fh, $ctx) = command_output_pipe('diff', @$diff_args);
+	transform_diff($params, $fh);
+	command_close_pipe($fh, $ctx);
+
+	return 0;
+}
+
+sub process_arguments {
+	my $includeRepoPath;
+	my $params;
+	$params->{globalRevision} = getGitConfigBool("svn.diffGlobalRevision", 1);
+	$params->{keepGitAnnotations} = getGitConfigBool("svn.diffWithAnnotations");
+	$params->{nonexistent} = getGitConfigBool("svn.diffShowNonexistent");
+	$params->{functionNameInDiff} = 1;
+	my @args;
+	my @files;
+
 	GetOptions(
 		"help|?" => \&printHelp,
 		"version" => \&printVersion,
@@ -108,104 +122,108 @@ my @files;
 			($params->{since}) = getParentCommits($params->{until});
 		}
 	}
+
+	$params->{since} = getCommitFromSvnIdentifier("BASE") unless $params->{since};
+	fatal "Cannot find SVN base commit in branch" unless $params->{since};
+
+	$params->{sinceRev} = getSvnRevision($params->{since});
+	fatal "Commit '$params->{since}' must be in SVN repository" unless defined $params->{sinceRev};
+	$params->{untilRev} = getSvnRevision($params->{until}) if $params->{until};
+
+	$params->{root} = '';
+	if ($includeRepoPath) {
+		my $output = command("svn", "info");
+
+		fatal "Cannot determine SVN Repository Root" unless $output =~ m/^Repository Root:\s*(\S.*)$/m;
+		my $url = $1;
+
+		fatal "Cannot determine SVN URL" unless $output =~ m!^URL:\s*$url/*(.*?)/*$!m;
+		$params->{root} = $1."/" if $1 ne "";
+	}
+
+	my @cmd = qw(--no-textconv);
+	push @cmd, @args;
+	push @cmd, '--relative' if $includeRepoPath;
+	push @cmd, $params->{since};
+	push @cmd, $params->{until} if $params->{until};
+	push @cmd, "--", @files if @files;
+
+	$params->{diff_args} = \@cmd;
+
+	return $params;
 }
-$params->{since} = getCommitFromSvnIdentifier("BASE") unless $params->{since};
-fatal "Cannot find SVN base commit in branch" unless $params->{since};
 
-$params->{sinceRev} = getSvnRevision($params->{since});
-fatal "Commit '$params->{since}' must be in SVN repository" unless defined $params->{sinceRev};
-$params->{untilRev} = getSvnRevision($params->{until}) if $params->{until};
+sub transform_diff {
+	my ($params, $fh) = @_;
 
-$params->{root} = '';
-if ($includeRepoPath) {
-	my $output = command("svn", "info");
+	$_ = <$fh>;
+	OUTER:
+	while ($_) {
+		fatal "Combined diff unsupported by SVN: $_" if m/^diff --(?:cc|combined)/;	# Is this actually a possibility??
+		fatal "Internal error: parsing header: $_" unless m!^diff --git ("?)a/(.*)\1 "?b/(.*)"?$!;
+		my $needsEscape = $1;
+		my $rawFile = $2;
+		my $file = $rawFile;
+		$file =~ s{(\\(?:0[0-7]{0,2}|[1-3][0-7]{0,2}|.))}{qq["$1"]}gee if $needsEscape;
 
-	fatal "Cannot determine SVN Repository Root" unless $output =~ m/^Repository Root:\s*(\S.*)$/m;
-	my $url = $1;
+		my ($old_type, $new_type) = ('','');
 
-	fatal "Cannot determine SVN URL" unless $output =~ m!^URL:\s*$url/*(.*?)/*$!m;
-	$params->{root} = $1."/" if $1 ne "";
-}
-
-my @cmd = qw(diff --no-textconv);
-push @cmd, @args;
-push @cmd, '--relative' if $includeRepoPath;
-push @cmd, $params->{since};
-push @cmd, $params->{until} if $params->{until};
-push @cmd, "--", @files if @files;
-
-# Perform the diff
-my ($fh, $ctx) = command_output_pipe(@cmd);
-END { command_close_pipe($fh, $ctx) if $fh };
-$_ = <$fh>;
-OUTER:
-while ($_) {
-	fatal "Combined diff unsupported by SVN: $_" if m/^diff --(?:cc|combined)/;	# Is this actually a possibility??
-	fatal "Internal error: parsing header: $_" unless m!^diff --git ("?)a/(.*)\1 "?b/(.*)"?$!;
-	my $needsEscape = $1;
-	my $rawFile = $2;
-	my $file = $rawFile;
-	$file =~ s{(\\(?:0[0-7]{0,2}|[1-3][0-7]{0,2}|.))}{qq["$1"]}gee if $needsEscape;
-
-	my ($old_type, $new_type) = ('','');
-
-	print "Index: $params->{root}$file\n";
-	print "===================================================================\n";
-	print if $params->{keepGitAnnotations};
-	while (<$fh>) {
-		next OUTER if m/^diff --git/;
-		last if m/^--- / or m/^Binary files .* differ/i;
+		print "Index: $params->{root}$file\n";
+		print "===================================================================\n";
 		print if $params->{keepGitAnnotations};
-		$old_type = $new_type = $1 if m/^index [0-9a-f]{6,40}\.\.[0-9a-f]{6,40} ([0-7]{5,6})$/;
-		$old_type = $1 if m/^(?:old|deleted file) mode ([0-7]{5,6})$/;
-		$new_type = $1 if m/^new (?:file )?mode ([0-7]{5,6})$/;
-	}
-	last if !defined $_;
-	if (m/^--- ("?)(.*)\1$/) {
-		my $oldFile = $2;
+		while (<$fh>) {
+			next OUTER if m/^diff --git/;
+			last if m/^--- / or m/^Binary files .* differ/i;
+			print if $params->{keepGitAnnotations};
+			$old_type = $new_type = $1 if m/^index [0-9a-f]{6,40}\.\.[0-9a-f]{6,40} ([0-7]{5,6})$/;
+			$old_type = $1 if m/^(?:old|deleted file) mode ([0-7]{5,6})$/;
+			$new_type = $1 if m/^new (?:file )?mode ([0-7]{5,6})$/;
+		}
+		last if !defined $_;
+		if (m/^--- ("?)(.*)\1$/) {
+			my $oldFile = $2;
 
-		my $oldRev;
-		if ($oldFile eq '/dev/null') {
-			$oldRev = $params->{nonexistent} ? "nonexistent" : "revision 0";
-		}
-		elsif ($oldFile =~ m{^a/\Q$rawFile\E\t?$}) {	# Git adds a tab for some reason on files with spaces
-			my $revision = $params->{globalRevision} ? $params->{sinceRev} : getSvnRevision($params->{since}, $rawFile);
-			$oldRev = "revision $revision";
-		}
-		else {
-			fatal "Internal error: parsing '---': $_";
-		}
-		$oldFile = "$params->{root}$file" if !$params->{keepGitAnnotations};
-		print "--- $oldFile\t($oldRev)\n";
+			my $oldRev;
+			if ($oldFile eq '/dev/null') {
+				$oldRev = $params->{nonexistent} ? "nonexistent" : "revision 0";
+			}
+			elsif ($oldFile =~ m{^a/\Q$rawFile\E\t?$}) {	# Git adds a tab for some reason on files with spaces
+				my $revision = $params->{globalRevision} ? $params->{sinceRev} : getSvnRevision($params->{since}, $rawFile);
+				$oldRev = "revision $revision";
+			}
+			else {
+				fatal "Internal error: parsing '---': $_";
+			}
+			$oldFile = "$params->{root}$file" if !$params->{keepGitAnnotations};
+			print "--- $oldFile\t($oldRev)\n";
 
-		$_ = <$fh>;
-		fatal "Internal error: parsing '+++': $_" unless m/^\+\+\+ (.*)$/;
-		my $newFile = $1;
-		my $newRev = "working copy";
-		if ($params->{nonexistent} && $newFile eq '/dev/null') {
-			$newRev = "nonexistent";
+			$_ = <$fh>;
+			fatal "Internal error: parsing '+++': $_" unless m/^\+\+\+ (.*)$/;
+			my $newFile = $1;
+			my $newRev = "working copy";
+			if ($params->{nonexistent} && $newFile eq '/dev/null') {
+				$newRev = "nonexistent";
+			}
+			elsif ($params->{untilRev}) {
+				my $revision = $params->{globalRevision} ? $params->{untilRev} : getSvnRevision($params->{until}, $rawFile);
+				$newRev = "revision $revision";
+			}
+			$newFile = "$params->{root}$file" if !$params->{keepGitAnnotations};
+			print "+++ $newFile\t($newRev)\n";
 		}
-		elsif ($params->{untilRev}) {
-			my $revision = $params->{globalRevision} ? $params->{untilRev} : getSvnRevision($params->{until}, $rawFile);
-			$newRev = "revision $revision";
+		elsif (m/^Binary files .* differ$/) {
+			print "Cannot display: file marked as a binary type.\n";
+			$_ = <$fh>;
+			next;
 		}
-		$newFile = "$params->{root}$file" if !$params->{keepGitAnnotations};
-		print "+++ $newFile\t($newRev)\n";
-	}
-	elsif (m/^Binary files .* differ$/) {
-		print "Cannot display: file marked as a binary type.\n";
-		$_ = <$fh>;
-		next;
-	}
-	while (($_ = <$fh> || '') =~ m/^[\@+\\ -]/) {
-		$old_type = '' if $old_type eq "120000" && s/^-/-link /;
-		$new_type = '' if $new_type eq "120000" && s/^\+/+link /;
-		s/(?<=\d @@).*$// if m/^@/ && ! $params->{functionNameInDiff};
-		print;
+		while (($_ = <$fh> || '') =~ m/^[\@+\\ -]/) {
+			$old_type = '' if $old_type eq "120000" && s/^-/-link /;
+			$new_type = '' if $new_type eq "120000" && s/^\+/+link /;
+			s/(?<=\d @@).*$// if m/^@/ && ! $params->{functionNameInDiff};
+			print;
+		}
 	}
 }
-
-exit;
 
 # Returns the commit corresponding to the given git or SVN identifier,
 # in decreasing priority.
