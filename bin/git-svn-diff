@@ -14,30 +14,28 @@ sub fatal { print STDERR "fatal: $_\n" foreach (@_); exit 255; }
 our $VERSION = '0.001002';
 
 my $includeRepoPath;
-my $globalRevision = getGitConfigBool("svn.diffGlobalRevision", 1);
-my $keepGitAnnotations = getGitConfigBool("svn.diffWithAnnotations");
-my $nonexistent = getGitConfigBool("svn.diffShowNonexistent");
-my $functionNameInDiff = 1;
-my ($since, $until);
+my $params;
+$params->{globalRevision} = getGitConfigBool("svn.diffGlobalRevision", 1);
+$params->{keepGitAnnotations} = getGitConfigBool("svn.diffWithAnnotations");
+$params->{nonexistent} = getGitConfigBool("svn.diffShowNonexistent");
+$params->{functionNameInDiff} = 1;
 my @args;
 my @files;
 {
-	my $revisions;
-	my $change;
 	GetOptions(
 		"help|?" => \&printHelp,
 		"version" => \&printVersion,
 
 		# git-svn-diff specific options
 		"relative-repo!" => \$includeRepoPath,
-		"global-revision!" => \$globalRevision,
-		"show-nonexistent!" => \$nonexistent,
+		"global-revision!" => \$params->{globalRevision},
+		"show-nonexistent!" => \$params->{nonexistent},
 
 		# svn diff specific options
-		"git!" => \$keepGitAnnotations,
-		"r|revision=s" => \$revisions,
-		"c|change=s" => \$change,
-		"show-in-function!" => \$functionNameInDiff,
+		"r|revision=s" => \my $revisions,
+		"c|change=s" => \my $change,
+		"show-in-function!" => \$params->{functionNameInDiff},
+		"git!" => \$params->{keepGitAnnotations},
 
 		# disallowed git-diff options
 		"R" => \&disallowedOpt,
@@ -53,12 +51,12 @@ my @files;
 	`git rev-parse --is-inside-work-tree`;
 	exit $? >> 8 if $?;
 
-	# Mark the $since & $until values if $revisions have been
-	# applied.  We can't actually resolve $since or $until yet
+	# Mark the $params->{since} & $params->{until} values if $revisions have been
+	# applied.  We can't actually resolve $params->{since} or $params->{until} yet
 	# because we don't have a list of file.
 	if ($revisions) {
-		$since = '';
-		$until = '' if $revisions =~ m/:/;
+		$params->{since} = '';
+		$params->{until} = '' if $revisions =~ m/:/;
 	}
 
 	# Resolve remaining command line args
@@ -75,12 +73,12 @@ my @files;
 		}
 		else {
 			fatal "Commits cannot be specified when SVN --change is used: $_" if $change;
-			fatal "Only 2 commit objects (or revisions) may be specified: $_" if defined $until;
-			if (defined $since) {
-				$until = getCommitFromGenericIdentifier($_);
+			fatal "Only 2 commit objects (or revisions) may be specified: $_" if defined $params->{until};
+			if (defined $params->{since}) {
+				$params->{until} = getCommitFromGenericIdentifier($_);
 			}
 			else {
-				$since = getCommitFromGenericIdentifier($_);
+				$params->{since} = getCommitFromGenericIdentifier($_);
 			}
 		}
 	}
@@ -91,34 +89,34 @@ my @files;
 	}
 	elsif (defined $revisions) {
 		fatal "Invalid revision string: $revisions" unless $revisions =~ m/^(\w+)(?::(\w+))?$/;
-		$since = getCommitFromSvnIdentifier($1, @files);
-		fatal "Cannot find revision: $1" unless $since;
+		$params->{since} = getCommitFromSvnIdentifier($1, @files);
+		fatal "Cannot find revision: $1" unless $params->{since};
 		if ($2) {
-			$until = getCommitFromSvnIdentifier($2, @files);
-			fatal "Cannot find revision: $2" unless $until;
+			$params->{until} = getCommitFromSvnIdentifier($2, @files);
+			fatal "Cannot find revision: $2" unless $params->{until};
 		}
 	}
 	elsif (defined $change) {
 		if ($change =~ s/^-//) {
-			$since = getCommitFromSvnIdentifier($change, @files);
-			fatal "Cannot find revision: $change" unless $since;
-			($until) = getParentCommits($since);
+			$params->{since} = getCommitFromSvnIdentifier($change, @files);
+			fatal "Cannot find revision: $change" unless $params->{since};
+			($params->{until}) = getParentCommits($params->{since});
 		}
 		else {
-			$until = getCommitFromSvnIdentifier($change, @files);
-			fatal "Cannot find revision: $change" unless $until;
-			($since) = getParentCommits($until);
+			$params->{until} = getCommitFromSvnIdentifier($change, @files);
+			fatal "Cannot find revision: $change" unless $params->{until};
+			($params->{since}) = getParentCommits($params->{until});
 		}
 	}
 }
-$since = getCommitFromSvnIdentifier("BASE") unless $since;
-fatal "Cannot find SVN base commit in branch" unless $since;
+$params->{since} = getCommitFromSvnIdentifier("BASE") unless $params->{since};
+fatal "Cannot find SVN base commit in branch" unless $params->{since};
 
-my $sinceRev = getSvnRevision($since);
-fatal "Commit '$since' must be in SVN repository" unless defined $sinceRev;
-my $untilRev = getSvnRevision($until) if $until;
+$params->{sinceRev} = getSvnRevision($params->{since});
+fatal "Commit '$params->{since}' must be in SVN repository" unless defined $params->{sinceRev};
+$params->{untilRev} = getSvnRevision($params->{until}) if $params->{until};
 
-my $root = '';
+$params->{root} = '';
 if ($includeRepoPath) {
 	my $output = command("svn", "info");
 
@@ -126,14 +124,14 @@ if ($includeRepoPath) {
 	my $url = $1;
 
 	fatal "Cannot determine SVN URL" unless $output =~ m!^URL:\s*$url/*(.*?)/*$!m;
-	$root = $1."/" if $1 ne "";
+	$params->{root} = $1."/" if $1 ne "";
 }
 
 my @cmd = qw(diff --no-textconv);
 push @cmd, @args;
 push @cmd, '--relative' if $includeRepoPath;
-push @cmd, $since;
-push @cmd, $until if $until;
+push @cmd, $params->{since};
+push @cmd, $params->{until} if $params->{until};
 push @cmd, "--", @files if @files;
 
 # Perform the diff
@@ -151,13 +149,13 @@ while ($_) {
 
 	my ($old_type, $new_type) = ('','');
 
-	print "Index: $root$file\n";
+	print "Index: $params->{root}$file\n";
 	print "===================================================================\n";
-	print if $keepGitAnnotations;
+	print if $params->{keepGitAnnotations};
 	while (<$fh>) {
 		next OUTER if m/^diff --git/;
 		last if m/^--- / or m/^Binary files .* differ/i;
-		print if $keepGitAnnotations;
+		print if $params->{keepGitAnnotations};
 		$old_type = $new_type = $1 if m/^index [0-9a-f]{6,40}\.\.[0-9a-f]{6,40} ([0-7]{5,6})$/;
 		$old_type = $1 if m/^(?:old|deleted file) mode ([0-7]{5,6})$/;
 		$new_type = $1 if m/^new (?:file )?mode ([0-7]{5,6})$/;
@@ -168,30 +166,30 @@ while ($_) {
 
 		my $oldRev;
 		if ($oldFile eq '/dev/null') {
-			$oldRev = $nonexistent ? "nonexistent" : "revision 0";
+			$oldRev = $params->{nonexistent} ? "nonexistent" : "revision 0";
 		}
 		elsif ($oldFile =~ m{^a/\Q$rawFile\E\t?$}) {	# Git adds a tab for some reason on files with spaces
-			my $revision = $globalRevision ? $sinceRev : getSvnRevision($since, $rawFile);
+			my $revision = $params->{globalRevision} ? $params->{sinceRev} : getSvnRevision($params->{since}, $rawFile);
 			$oldRev = "revision $revision";
 		}
 		else {
 			fatal "Internal error: parsing '---': $_";
 		}
-		$oldFile = "$root$file" if !$keepGitAnnotations;
+		$oldFile = "$params->{root}$file" if !$params->{keepGitAnnotations};
 		print "--- $oldFile\t($oldRev)\n";
 
 		$_ = <$fh>;
 		fatal "Internal error: parsing '+++': $_" unless m/^\+\+\+ (.*)$/;
 		my $newFile = $1;
 		my $newRev = "working copy";
-		if ($nonexistent && $newFile eq '/dev/null') {
+		if ($params->{nonexistent} && $newFile eq '/dev/null') {
 			$newRev = "nonexistent";
 		}
-		elsif ($untilRev) {
-			my $revision = $globalRevision ? $untilRev : getSvnRevision($until, $rawFile);
+		elsif ($params->{untilRev}) {
+			my $revision = $params->{globalRevision} ? $params->{untilRev} : getSvnRevision($params->{until}, $rawFile);
 			$newRev = "revision $revision";
 		}
-		$newFile = "$root$file" if !$keepGitAnnotations;
+		$newFile = "$params->{root}$file" if !$params->{keepGitAnnotations};
 		print "+++ $newFile\t($newRev)\n";
 	}
 	elsif (m/^Binary files .* differ$/) {
@@ -202,7 +200,7 @@ while ($_) {
 	while (($_ = <$fh> || '') =~ m/^[\@+\\ -]/) {
 		$old_type = '' if $old_type eq "120000" && s/^-/-link /;
 		$new_type = '' if $new_type eq "120000" && s/^\+/+link /;
-		s/(?<=\d @@).*$// if m/^@/ && ! $functionNameInDiff;
+		s/(?<=\d @@).*$// if m/^@/ && ! $params->{functionNameInDiff};
 		print;
 	}
 }
