@@ -79,11 +79,11 @@ sub process_arguments {
 		if ($_ eq "--") {
 			$hasFiles = 1;
 		}
-		elsif (m/^-/) {
-			push @args, $_;
-		}
 		elsif ($hasFiles) {
 			push @files, $_;
+		}
+		elsif (m/^-/) {
+			push @args, $_;
 		}
 		else {
 			fatal "Commits cannot be specified when SVN --change is used: $_" if $change;
