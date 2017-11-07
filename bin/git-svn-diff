@@ -28,11 +28,7 @@ sub _main {
 
 sub process_arguments {
 	my $includeRepoPath;
-	my $params;
-	$params->{globalRevision} = getGitConfigBool("svn.diffGlobalRevision", 1);
-	$params->{keepGitAnnotations} = getGitConfigBool("svn.diffWithAnnotations");
-	$params->{nonexistent} = getGitConfigBool("svn.diffShowNonexistent");
-	$params->{functionNameInDiff} = 1;
+	my $params = { functionNameInDiff => 1 };
 	my @args;
 	my @files;
 
@@ -64,6 +60,10 @@ sub process_arguments {
 	# --version processing.
 	`git rev-parse --is-inside-work-tree`;
 	exit $? >> 8 if $?;
+
+	$params->{globalRevision} = getGitConfigBool("svn.diffGlobalRevision", 1) if !defined $params->{globalRevision};
+	$params->{keepGitAnnotations} = getGitConfigBool("svn.diffWithAnnotations") if !defined $params->{keepGitAnnotations};
+	$params->{nonexistent} = getGitConfigBool("svn.diffShowNonexistent") if !defined $params->{nonexistent};
 
 	# Mark the $params->{since} & $params->{until} values if $revisions have been
 	# applied.  We can't actually resolve $params->{since} or $params->{until} yet
