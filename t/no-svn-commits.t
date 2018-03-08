@@ -43,7 +43,7 @@ fatal: Cannot find SVN base commit in branch
 ERR
 is($got, $expected, "Cannot resolve revision");
 
-my $got = qx{"$^X" "$diff_bin" -r 1 2>&1};
+$got = qx{"$^X" "$diff_bin" -r 1 2>&1};
 my $expected = <<ERR;
 fatal: Cannot find revision: 1
 ERR

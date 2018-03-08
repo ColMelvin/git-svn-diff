@@ -38,7 +38,7 @@ test_repo($repo, "trunk", "HOTFIX", "Compare trunk and branch");
 test_repo($repo, "FEATURE", "HOTFIX", "Compare 2 branches");
 
 Test::Repo::test_diff($repo,
-	svn_args => [ svn_branch($repo, "trunk@2"), svn_branch($repo, "FEATURE") ],
+	svn_args => [ svn_branch($repo, 'trunk@2'), svn_branch($repo, "FEATURE") ],
 	git_args => [ "origin/trunk^", "origin/FEATURE" ],
 	name => "Compare versioned revisions",
 );
