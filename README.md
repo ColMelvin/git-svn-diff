@@ -36,7 +36,7 @@ Several simple transformation scripts use **sed**(1) to alter the format.  Check
 
 ## License and Copyright
 
-Copyright (C) 2012-2016  Chris Lindee
+Copyright (C) 2012-2018  Chris Lindee
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
