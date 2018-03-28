@@ -32,7 +32,13 @@ sub _initialize {
 	my $dir = $self->{dir};
 	__run_in($dir, qw(svnadmin create repo));
 
-	my $repo = "file://@{[File::Spec::Unix->canonpath($dir)]}/repo";
+	my $base = File::Spec::Unix->canonpath($dir);
+	if ($^O eq "MSWin32") {
+		$base =~ s{\\}{/}g;
+		$base = "/$base";
+	}
+
+	my $repo = "file://$base/repo";
 	$self->{repo} = $repo;
 
 	# Setup the standard layout, if requested.
@@ -44,6 +50,7 @@ sub _initialize {
 
 	# Clone SVN & Git repositories.
 	__run_in($dir, qw(svn checkout -q), $repo, "svn");
+	$repo =~ s{^(file:///\w):}{$1} if $^O eq "MSWin32";	# Workaround for https://github.com/git-for-windows/git/issues/1593
 	__run_in($dir, qw(git svn init), @git_opts, $repo, "git");
 }
 
@@ -150,7 +157,7 @@ sub svn_diff {
 
 sub git_svn_diff {
 	my ($self, @args) = @_;
-	my ($out, $err) = __capture_cmd($self->get_git_wc(), $diff_bin, @args);
+	my ($out, $err) = __capture_cmd($self->get_git_wc(), $^X, $diff_bin, @args);
 	warn $err if $err;
 	return $out;
 }
@@ -162,6 +169,7 @@ sub create_git_orderfile {
 
 	my $file = File::Spec->catfile($self->{dir}, "orderfile");
 	open my $fh, '>', $file or die "Cannot open file “$file”: $!";
+	binmode $fh or die "Cannot set binmode: $!";	# Needed for Git on Windows
 	print {$fh} join "\n", @order, '';
 	close $fh or warn "Cannot close file “$file”: $!";
 

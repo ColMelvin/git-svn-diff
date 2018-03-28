@@ -3,6 +3,8 @@
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
+use File::chdir;
+
 use Test::More tests => 2;
 use Test::Repo;
 
@@ -49,7 +51,11 @@ Test::Repo::test_diff($repo, name => "Diff with BASE");
 my $diff_bin = "$FindBin::Bin/../bin/git-svn-diff";
 my $dir = $repo->get_git_wc();
 
-my $got = qx{cd "$dir"; "$diff_bin" --relative-repo 2>&1};
+my $got;
+{
+	local $CWD = $dir;
+	$got = qx{"$^X" "$diff_bin" --relative-repo 2>&1};
+}
 my $expected = <<ERR;
 svn info: command returned error: 1
 ERR

@@ -19,31 +19,31 @@ system qw(git commit -m), "Modifications";
 
 write_file("file", "Changed contents\nWorking copy\n");
 
-my $got = qx{"$diff_bin" -c 1 2>&1};
+my $got = qx{"$^X" "$diff_bin" -c 1 2>&1};
 my $expected = <<ERR;
 fatal: Cannot find revision: 1
 ERR
 is($got, $expected, "Revision 1 not found");
 
-$got = qx{"$diff_bin" -c 2 2>&1};
+$got = qx{"$^X" "$diff_bin" -c 2 2>&1};
 $expected = <<ERR;
 fatal: Cannot find revision: 2
 ERR
 is($got, $expected, "Revision 2 not found");
 
-$got = qx{"$diff_bin" HEAD^ HEAD 2>&1};
+$got = qx{"$^X" "$diff_bin" HEAD^ HEAD 2>&1};
 $expected = <<ERR;
 fatal: Commit '[0-9a-f]{40}' must be in SVN repository
 ERR
 like($got, qr/$expected/, "Cannot resolve revision");
 
-$got = qx{"$diff_bin" 2>&1};
+$got = qx{"$^X" "$diff_bin" 2>&1};
 $expected = <<ERR;
 fatal: Cannot find SVN base commit in branch
 ERR
 is($got, $expected, "Cannot resolve revision");
 
-my $got = qx{"$diff_bin" -r 1 2>&1};
+my $got = qx{"$^X" "$diff_bin" -r 1 2>&1};
 my $expected = <<ERR;
 fatal: Cannot find revision: 1
 ERR
